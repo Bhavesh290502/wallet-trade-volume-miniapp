@@ -61,9 +61,10 @@ module.exports = async (req, res) => {
     const resp = await fetch('https://graphql.bitquery.io/', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': BITQUERY_API_KEY
-      },
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${BITQUERY_API_KEY}`
+},
+
       body: JSON.stringify({ query, variables })
     });
 

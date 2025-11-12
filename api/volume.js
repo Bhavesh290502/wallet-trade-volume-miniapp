@@ -1,7 +1,4 @@
 // api/volume.js
-// Fetch total DEX trading volume in USD using Covalent's public demo key.
-// Works without any API key setup (ckey_demo).
-
 module.exports = async (req, res) => {
   try {
     const address = (req.query.address || '').trim().toLowerCase();
@@ -11,7 +8,6 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: 'Invalid or missing address' });
     }
 
-    // Map to Covalent chain IDs
     const chainMap = {
       eth: 1,
       ethereum: 1,
@@ -24,25 +20,27 @@ module.exports = async (req, res) => {
     };
 
     const chainId = chainMap[chain] || 1;
+    const apiKey = process.env.COVALENT_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'Missing COVALENT_API_KEY environment variable' });
+    }
 
-    // Covalent DEX Trades endpoint
-    const url = `https://api.covalenthq.com/v1/${chainId}/address/${address}/transactions_v3/?quote-currency=USD&no-logs=true&key=ckey_demo`;
+    const url = `https://api.covalenthq.com/v1/${chainId}/address/${address}/transactions_v3/?quote-currency=USD&no-logs=true&key=${apiKey}`;
 
     const resp = await fetch(url);
+    const text = await resp.text();
+
     if (!resp.ok) {
-      const text = await resp.text();
       return res.status(resp.status).json({ error: 'Covalent API error', body: text });
     }
 
-    const json = await resp.json();
-
-    if (!json || !json.data || !Array.isArray(json.data.items)) {
+    const json = JSON.parse(text);
+    if (!json?.data?.items) {
       return res.status(200).json({ volumeUsd: 0, count: 0, breakdown: [] });
     }
 
     let totalUsd = 0;
     let count = 0;
-
     for (const tx of json.data.items) {
       const quote = tx.value_quote || 0;
       if (quote > 0) {

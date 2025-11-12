@@ -1,11 +1,9 @@
 {
-  "version": 2,
-  "public": true,
   "redirects": [
     {
       "source": "/.well-known/farcaster.json",
       "destination": "/farcaster.json",
-      "statusCode": 307
+      "permanent": false
     }
   ]
 }

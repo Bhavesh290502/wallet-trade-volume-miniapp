@@ -1,26 +1,11 @@
 {
-  "version": "1",
-  "accountAssociation": {
-    "header": {
-      "alg": "ETH_SIGN",
-      "typ": "custody"
-    },
-    "payload": {
-      "domain": "example.vercel.app"
-    },
-    "signature": "REPLACE_WITH_YOUR_SIGNATURE"
-  },
-  "miniapp": {
-    "name": "Wallet Trade Volume MiniApp",
-    "description": "Shows a wallet's total DEX trade volume (USD) and allows sharing to Farcaster.",
-    "url": "https://example.vercel.app",
-    "iconUrl": "https://example.vercel.app/icon.png",
-    "splashImageUrl": "https://example.vercel.app/splash.png",
-    "developer": {
-      "name": "Your Name or Org",
-      "url": "https://your-site.example"
-    },
-    "scopes": ["compose:cast", "wallet:read"],
-    "version": "1"
+  "name": "Wallet Volume Tracker",
+  "description": "Check your wallet's total trade volume and share it to Farcaster.",
+  "icon_url": "https://wallet-trade-volume-miniapp.vercel.app/icon.png",
+  "home_url": "https://wallet-trade-volume-miniapp.vercel.app/",
+  "schema": "farcaster.miniapp",
+  "developer": {
+    "name": "Your Name",
+    "url": "https://yourwebsite.com"
   }
 }

@@ -1,108 +1,59 @@
 // api/volume.js
-// Vercel Serverless Function (Node.js runtime with global fetch).
-// Expects environment variable BITQUERY_API_KEY set in Vercel.
-// Query: /api/volume?address=0x...&chain=eth
+// Fetch total DEX trading volume in USD using Covalent's public demo key.
+// Works without any API key setup (ckey_demo).
 
 module.exports = async (req, res) => {
   try {
-    const addrRaw = (req.query.address || '').toString().trim();
-    const chain = (req.query.chain || 'eth').toString().toLowerCase();
+    const address = (req.query.address || '').trim().toLowerCase();
+    const chain = (req.query.chain || 'eth').toLowerCase();
 
-    if (!addrRaw || !/^0x[0-9a-fA-F]{40}$/.test(addrRaw)) {
-      return res.status(400).json({ error: 'Invalid or missing address. Use ?address=0x...' });
-    }
-    const address = addrRaw.toLowerCase();
-
-    const BITQUERY_API_KEY = process.env.BITQUERY_API_KEY;
-    if (!BITQUERY_API_KEY) {
-      return res.status(500).json({ error: 'Missing BITQUERY_API_KEY environment variable on server' });
+    if (!/^0x[a-f0-9]{40}$/.test(address)) {
+      return res.status(400).json({ error: 'Invalid or missing address' });
     }
 
-    // Map simple chain to Bitquery network name
-    const NETWORK_MAP = {
-      eth: 'ethereum',
-      polygon: 'polygon',
-      bsc: 'bsc',
-      optimism: 'optimism',
-      arbitrum: 'arbitrum',
-      base: 'base'
+    // Map to Covalent chain IDs
+    const chainMap = {
+      eth: 1,
+      ethereum: 1,
+      polygon: 137,
+      matic: 137,
+      bsc: 56,
+      base: 8453,
+      arbitrum: 42161,
+      optimism: 10,
     };
-    const network = NETWORK_MAP[chain] || 'ethereum';
 
-    // GraphQL query: fetch dexTrades where address is buyer or seller or tx.from
-    // We request tradeAmount(in: USD) for each trade; we'll sum it server-side.
-    const query = `
-      query ($addr: String!) {
-        ${network} {
-          dexTrades(
-            any: [
-              { buyer: { is: $addr } },
-              { seller: { is: $addr } },
-              { transaction: { from: { is: $addr } } }
-            ],
-            options: {limit: 10000}
-          ) {
-            transaction {
-              hash
-            }
-            time {
-              unix
-            }
-            buyAmount
-            sellAmount
-            tradeAmount(in: USD)
-          }
-        }
-      }
-    `;
+    const chainId = chainMap[chain] || 1;
 
-    const variables = { addr: address };
+    // Covalent DEX Trades endpoint
+    const url = `https://api.covalenthq.com/v1/${chainId}/address/${address}/transactions_v3/?quote-currency=USD&no-logs=true&key=ckey_demo`;
 
-    const resp = await fetch('https://graphql.bitquery.io/', {
-      method: 'POST',
-      headers: {
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${BITQUERY_API_KEY}`
-},
-
-      body: JSON.stringify({ query, variables })
-    });
-
+    const resp = await fetch(url);
     if (!resp.ok) {
-      const text = await resp.text().catch(()=>null);
-      return res.status(502).json({ error: 'Bitquery responded with error', status: resp.status, body: text });
+      const text = await resp.text();
+      return res.status(resp.status).json({ error: 'Covalent API error', body: text });
     }
 
     const json = await resp.json();
-    if (json.errors) {
-      return res.status(502).json({ error: 'Bitquery GraphQL errors', details: json.errors });
-    }
 
-    const trades = (json.data && json.data[network] && json.data[network].dexTrades) || [];
+    if (!json || !json.data || !Array.isArray(json.data.items)) {
+      return res.status(200).json({ volumeUsd: 0, count: 0, breakdown: [] });
+    }
 
     let totalUsd = 0;
-    const breakdown = [];
+    let count = 0;
 
-    for (const t of trades) {
-      let usd = 0;
-      if (t['tradeAmount(in: USD)'] !== undefined && t['tradeAmount(in: USD)'] !== null) {
-        // some GraphQL clients return aliased fields as raw keys; try both ways
-        usd = Number(t['tradeAmount(in: USD)']) || 0;
-      } else if (t.tradeAmount !== undefined && t.tradeAmount !== null) {
-        usd = Number(t.tradeAmount) || 0;
-      } else if (t['tradeAmount(in: USD)'] === undefined) {
-        // fallback: approximate from buyAmount * 1 (not perfect, but attempt)
-        const buy = Number(t.buyAmount || 0);
-        const sell = Number(t.sellAmount || 0);
-        usd = Math.max(buy, sell) || 0;
+    for (const tx of json.data.items) {
+      const quote = tx.value_quote || 0;
+      if (quote > 0) {
+        totalUsd += quote;
+        count++;
       }
-      totalUsd += usd;
-      breakdown.push({ hash: t.transaction?.hash || null, time: t.time?.unix || null, usd });
     }
 
-    return res.status(200).json({ volumeUsd: totalUsd, count: trades.length, breakdown });
+    res.status(200).json({ volumeUsd: totalUsd, count });
   } catch (err) {
-    console.error('api/volume error', err);
-    return res.status(500).json({ error: 'Server error', details: String(err) });
+    console.error('Error in /api/volume:', err);
+    res.status(500).json({ error: 'Internal server error', details: String(err) });
   }
 };
